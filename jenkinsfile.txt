@@ -1,0 +1,39 @@
+String branchName = "main"
+String gitCredentials = "134f9a13-383d-4b50-9980-64f206c9c289"
+String repoUrl = "git@github.com:stefantafara/jenkinstest.git"
+
+node {
+    stage('Clone git project') {
+        // Get some code from a GitHub repository
+        echo 'Cloning files from (branch: "' + branchName + '" )'
+        git branch: branchName, credentialsId: gitCredentials, url: repoUrl
+        sh "echo 'current dir: '; pwd;"
+        sh "ls -l ./*"
+    }
+    stage('Build docker image') {
+        // Copy index.html
+        sh """
+            cd /var/lib/jenkins/workspace/mypipeline/
+            docker image prune -a --force
+            docker build --tag mysite:1.0 --label apachelabel .
+        """
+    }
+    stage('Kill old docker') {
+        sh """
+            c=\$(docker ps -q -a -f name=apache)
+            if [ ! "\${c}" ]; then
+                echo "Container apache doesn't exist"
+            else    
+                echo "Killing container apache..."
+                docker rm --force \$c
+                docker system prune -f                                
+            fi
+        """        
+    }
+    stage('Run docker') {
+        sh "docker run --name apache -p 80:80 -d mysite:1.0"
+    }
+    stage('Test') {
+        sh "curl http://localhost"
+    }
+}
